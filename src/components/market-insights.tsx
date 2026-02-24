@@ -415,8 +415,46 @@ export default function MarketInsights() {
   const [priceHistory, setPriceHistory] = useState<number[]>([]);
   const openPriceRef = useRef<number | null>(null);
 
-  // ---------- Static chart data (generated once) ----------
-  const chartData = useMemo(() => generateChartData(), []);
+  // ---------- Historical chart data (fetched from API) ----------
+  const [historyData, setHistoryData] = useState<{ dates: string[]; prices: number[] } | null>(null);
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const res = await fetch("/api/gold-history");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.dates && data.prices) {
+          setHistoryData(data);
+        }
+      } catch {
+        // fall back to placeholder
+      }
+    };
+    fetchHistory();
+  }, []);
+
+  // Use real data or a placeholder while loading
+  const chartData = useMemo(() => {
+    if (historyData) return historyData.prices;
+    return generateChartData();
+  }, [historyData]);
+
+  // Derive month labels from actual dates
+  const chartMonths = useMemo(() => {
+    if (!historyData) return MONTHS;
+    const seen = new Set<string>();
+    const labels: string[] = [];
+    for (const d of historyData.dates) {
+      const month = MONTH_NAMES[new Date(d).getMonth()];
+      if (!seen.has(month)) {
+        seen.add(month);
+        labels.push(month);
+      }
+    }
+    return labels;
+  }, [historyData]);
+
   const chartLinePath = useMemo(
     () => pointsToPath(chartData, CHART_WIDTH, CHART_HEIGHT, CHART_PADDING),
     [chartData]
@@ -426,14 +464,17 @@ export default function MarketInsights() {
     [chartData]
   );
 
-  // Y-axis labels
+  // Y-axis labels derived from real price range
   const priceMin = Math.min(...chartData);
   const priceMax = Math.max(...chartData);
   const yLabels = useMemo(() => {
+    // Round to nice numbers
+    const niceMin = Math.floor(priceMin / 50) * 50;
+    const niceMax = Math.ceil(priceMax / 50) * 50;
     const labels: number[] = [];
-    const step = (priceMax - priceMin) / 4;
+    const step = (niceMax - niceMin) / 4;
     for (let i = 0; i <= 4; i++) {
-      labels.push(Math.round(priceMin + step * i));
+      labels.push(Math.round(niceMin + step * i));
     }
     return labels;
   }, [priceMin, priceMax]);
@@ -720,7 +761,7 @@ export default function MarketInsights() {
                     </span>
                   );
                 })()}
-                <span className="text-faint text-xs">Session</span>
+                <span className="text-faint text-xs">1Y</span>
               </div>
 
               {/* SVG Chart */}
@@ -851,9 +892,9 @@ export default function MarketInsights() {
                   })}
 
                   {/* X axis labels (months) */}
-                  {MONTHS.map((month, i) => {
+                  {chartMonths.map((month, i) => {
                     const plotWidth = CHART_WIDTH - CHART_PADDING.left - CHART_PADDING.right;
-                    const x = CHART_PADDING.left + (i / (MONTHS.length - 1)) * plotWidth;
+                    const x = CHART_PADDING.left + (i / (chartMonths.length - 1)) * plotWidth;
                     return (
                       <text
                         key={month}
