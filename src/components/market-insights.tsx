@@ -62,17 +62,17 @@ function pointsToPath(
   points: number[],
   width: number,
   height: number,
-  padding: { top: number; bottom: number }
+  padding: { top: number; bottom: number; left: number; right: number }
 ): string {
   const min = Math.min(...points);
   const max = Math.max(...points);
   const range = max - min || 1;
 
-  const scaleX = width / (points.length - 1);
+  const plotWidth = width - padding.left - padding.right;
   const usableHeight = height - padding.top - padding.bottom;
 
   const coords = points.map((p, i) => ({
-    x: i * scaleX,
+    x: padding.left + (i / (points.length - 1)) * plotWidth,
     y: padding.top + usableHeight - ((p - min) / range) * usableHeight,
   }));
 
@@ -96,11 +96,14 @@ function pointsToArea(
   points: number[],
   width: number,
   height: number,
-  padding: { top: number; bottom: number }
+  padding: { top: number; bottom: number; left: number; right: number }
 ): string {
   const linePath = pointsToPath(points, width, height, padding);
-  const lastX = (points.length - 1) * (width / (points.length - 1));
-  return `${linePath} L ${lastX},${height} L 0,${height} Z`;
+  const plotWidth = width - padding.left - padding.right;
+  const lastX = padding.left + plotWidth;
+  const firstX = padding.left;
+  const bottomY = height - padding.bottom;
+  return `${linePath} L ${lastX},${bottomY} L ${firstX},${bottomY} Z`;
 }
 
 // Sparkline SVG path for small inline charts
@@ -130,7 +133,7 @@ function sparklinePath(data: number[], w: number, h: number): string {
 
 const CHART_WIDTH = 720;
 const CHART_HEIGHT = 340;
-const CHART_PADDING = { top: 30, bottom: 50 };
+const CHART_PADDING = { top: 20, bottom: 40, left: 70, right: 20 };
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const MONTHS = MONTH_NAMES;
 const VOLUME_BARS = 32;
@@ -725,7 +728,7 @@ export default function MarketInsights() {
                 <svg
                   viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
                   className="w-full h-full"
-                  preserveAspectRatio="none"
+                  preserveAspectRatio="xMidYMid meet"
                 >
                   <defs>
                     {/* Gradient fill below line */}
@@ -751,16 +754,14 @@ export default function MarketInsights() {
 
                   {/* Horizontal grid lines */}
                   {yLabels.map((_, i) => {
-                    const y =
-                      CHART_PADDING.top +
-                      (CHART_HEIGHT - CHART_PADDING.top - CHART_PADDING.bottom) -
-                      (i / 4) * (CHART_HEIGHT - CHART_PADDING.top - CHART_PADDING.bottom);
+                    const usableH = CHART_HEIGHT - CHART_PADDING.top - CHART_PADDING.bottom;
+                    const y = CHART_PADDING.top + usableH - (i / 4) * usableH;
                     return (
                       <line
                         key={i}
-                        x1={0}
+                        x1={CHART_PADDING.left}
                         y1={y}
-                        x2={CHART_WIDTH}
+                        x2={CHART_WIDTH - CHART_PADDING.right}
                         y2={y}
                         stroke="#1E1E26"
                         strokeWidth={0.5}
@@ -803,8 +804,9 @@ export default function MarketInsights() {
                       const min = Math.min(...chartData);
                       const max = Math.max(...chartData);
                       const range = max - min || 1;
+                      const plotWidth = CHART_WIDTH - CHART_PADDING.left - CHART_PADDING.right;
                       const usableHeight = CHART_HEIGHT - CHART_PADDING.top - CHART_PADDING.bottom;
-                      const cx = lastIdx * (CHART_WIDTH / (chartData.length - 1));
+                      const cx = CHART_PADDING.left + (lastIdx / (chartData.length - 1)) * plotWidth;
                       const cy = CHART_PADDING.top + usableHeight - ((chartData[lastIdx] - min) / range) * usableHeight;
                       return (
                         <>
@@ -831,17 +833,16 @@ export default function MarketInsights() {
 
                   {/* Y axis labels */}
                   {yLabels.map((label, i) => {
-                    const y =
-                      CHART_PADDING.top +
-                      (CHART_HEIGHT - CHART_PADDING.top - CHART_PADDING.bottom) -
-                      (i / 4) * (CHART_HEIGHT - CHART_PADDING.top - CHART_PADDING.bottom);
+                    const usableH = CHART_HEIGHT - CHART_PADDING.top - CHART_PADDING.bottom;
+                    const y = CHART_PADDING.top + usableH - (i / 4) * usableH;
                     return (
                       <text
                         key={i}
-                        x={4}
-                        y={y - 6}
+                        x={CHART_PADDING.left - 8}
+                        y={y + 4}
                         fill="#5A5A70"
                         fontSize={10}
+                        textAnchor="end"
                         fontFamily="var(--font-body)"
                       >
                         ${label.toLocaleString()}
@@ -851,12 +852,13 @@ export default function MarketInsights() {
 
                   {/* X axis labels (months) */}
                   {MONTHS.map((month, i) => {
-                    const x = (i / (MONTHS.length - 1)) * CHART_WIDTH;
+                    const plotWidth = CHART_WIDTH - CHART_PADDING.left - CHART_PADDING.right;
+                    const x = CHART_PADDING.left + (i / (MONTHS.length - 1)) * plotWidth;
                     return (
                       <text
                         key={month}
                         x={x}
-                        y={CHART_HEIGHT - 8}
+                        y={CHART_HEIGHT - 10}
                         fill="#5A5A70"
                         fontSize={10}
                         textAnchor="middle"
